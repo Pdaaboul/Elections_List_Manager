@@ -38,8 +38,9 @@ public class StatsDialog extends Dialog<Void> {
         // Create tabs
         Tab candidateStatsTab = createCandidateStatsTab();
         Tab savedListsTab = createSavedListsTab();
+        Tab identicalBatchesTab = createIdenticalBatchesTab();
         
-        tabPane.getTabs().addAll(candidateStatsTab, savedListsTab);
+        tabPane.getTabs().addAll(candidateStatsTab, savedListsTab, identicalBatchesTab);
         
         // Add close button
         ButtonType closeButton = new ButtonType("Close", ButtonBar.ButtonData.OK_DONE);
@@ -159,6 +160,90 @@ public class StatsDialog extends Dialog<Void> {
             
             // Add lists to a scroll pane
             ScrollPane scrollPane = new ScrollPane(listsContainer);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setPrefHeight(350);
+            
+            content.getChildren().add(scrollPane);
+            VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        }
+        
+        tab.setContent(content);
+        return tab;
+    }
+    
+    private Tab createIdenticalBatchesTab() {
+        Tab tab = new Tab("Selection Patterns");
+        
+        // Load identical batches data
+        List<Map<String, Object>> batches = databaseService.getIdenticalSelectionBatches();
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        if (batches.isEmpty()) {
+            Label noDataLabel = new Label("No selection patterns found.");
+            noDataLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+            content.getChildren().add(noDataLabel);
+        } else {
+            Label titleLabel = new Label("Identical Selection Patterns");
+            titleLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+            content.getChildren().add(titleLabel);
+            
+            Label descriptionLabel = new Label(
+                "This section shows patterns of identical selections - " +
+                "lists where exactly the same candidates were selected in the same order."
+            );
+            descriptionLabel.setWrapText(true);
+            content.getChildren().add(descriptionLabel);
+            
+            // Create container for batches
+            VBox batchesContainer = new VBox(15);
+            batchesContainer.setPadding(new Insets(5));
+            
+            // Add each batch
+            for (Map<String, Object> batch : batches) {
+                String batchName = (String) batch.get("name");
+                int count = (int) batch.get("count");
+                
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> candidates = (List<Map<String, Object>>) batch.get("candidates");
+                
+                // Batch header
+                TitledPane batchPane = new TitledPane();
+                batchPane.setText(batchName + " (Occurred " + count + " times)");
+                
+                // Create content
+                VBox batchContent = new VBox(5);
+                batchContent.setPadding(new Insets(10));
+                
+                // Add a label for stronger emphasis on the count
+                Label countLabel = new Label("This exact selection pattern has been chosen " + count + " times.");
+                countLabel.setFont(Font.font("System", FontWeight.BOLD, 12));
+                countLabel.setPadding(new Insets(0, 0, 10, 0));
+                batchContent.getChildren().add(countLabel);
+                
+                // Add candidates list with their order
+                ListView<String> candidatesList = new ListView<>();
+                
+                for (Map<String, Object> candidate : candidates) {
+                    String name = (String) candidate.get("name");
+                    String list = (String) candidate.get("list");
+                    int order = (int) candidate.get("order");
+                    
+                    candidatesList.getItems().add(String.format("#%d - %s (%s)", order, name, list));
+                }
+                
+                batchContent.getChildren().add(candidatesList);
+                VBox.setVgrow(candidatesList, Priority.ALWAYS);
+                
+                batchPane.setContent(batchContent);
+                batchPane.setExpanded(false);
+                
+                batchesContainer.getChildren().add(batchPane);
+            }
+            
+            // Add batches to a scroll pane
+            ScrollPane scrollPane = new ScrollPane(batchesContainer);
             scrollPane.setFitToWidth(true);
             scrollPane.setPrefHeight(350);
             

@@ -242,4 +242,94 @@ public class DatabaseService {
         
         return candidates;
     }
+    
+    // New method to get identical selection batches
+    public List<Map<String, Object>> getIdenticalSelectionBatches() {
+        List<Map<String, Object>> batches = new ArrayList<>();
+        Map<String, List<String>> sessionFingerprints = new HashMap<>();
+        Map<String, Integer> fingerprintCounts = new HashMap<>();
+        Map<String, String> fingerprintToSessionId = new HashMap<>();
+        
+        try (Connection conn = DriverManager.getConnection(DB_URL)) {
+            // First, get all session IDs
+            List<String> sessionIds = new ArrayList<>();
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery("SELECT DISTINCT session_id FROM " + SELECTIONS_TABLE)) {
+                while (rs.next()) {
+                    sessionIds.add(rs.getString("session_id"));
+                }
+            }
+            
+            // For each session, create a fingerprint
+            for (String sessionId : sessionIds) {
+                List<Map<String, Object>> candidates = getSessionCandidates(sessionId);
+                StringBuilder fingerprint = new StringBuilder();
+                
+                for (Map<String, Object> candidate : candidates) {
+                    String name = (String) candidate.get("name");
+                    String list = (String) candidate.get("list");
+                    int order = (int) candidate.get("order");
+                    
+                    fingerprint.append(name).append("|").append(list).append("|").append(order).append(",");
+                }
+                
+                String fingerprintStr = fingerprint.toString();
+                
+                // Add to maps
+                if (!sessionFingerprints.containsKey(fingerprintStr)) {
+                    sessionFingerprints.put(fingerprintStr, new ArrayList<>());
+                }
+                sessionFingerprints.get(fingerprintStr).add(sessionId);
+                
+                fingerprintCounts.put(fingerprintStr, sessionFingerprints.get(fingerprintStr).size());
+                fingerprintToSessionId.put(fingerprintStr, sessionId);
+            }
+            
+            // Now create batch objects
+            int batchNumber = 1;
+            for (String fingerprint : fingerprintCounts.keySet()) {
+                int count = fingerprintCounts.get(fingerprint);
+                String sampleSessionId = fingerprintToSessionId.get(fingerprint);
+                
+                // Get the candidates for a sample session with this fingerprint
+                List<Map<String, Object>> candidates = getSessionCandidates(sampleSessionId);
+                
+                Map<String, Object> batch = new HashMap<>();
+                batch.put("id", "batch_" + batchNumber++);
+                batch.put("fingerprint", fingerprint);
+                batch.put("count", count);
+                batch.put("candidates", candidates);
+                
+                // Calculate a descriptive name based on the top selected candidates
+                StringBuilder nameBuilder = new StringBuilder();
+                int candidateCount = 0;
+                for (Map<String, Object> candidate : candidates) {
+                    if (candidateCount < 2) { // Just show first two candidates for the name
+                        if (candidateCount > 0) nameBuilder.append(", ");
+                        nameBuilder.append(candidate.get("name"));
+                        candidateCount++;
+                    } else {
+                        nameBuilder.append("...");
+                        break;
+                    }
+                }
+                
+                batch.put("name", "Selection Pattern: " + nameBuilder.toString());
+                batches.add(batch);
+            }
+            
+            // Sort batches by count (descending)
+            batches.sort((b1, b2) -> {
+                Integer count1 = (Integer) b1.get("count");
+                Integer count2 = (Integer) b2.get("count");
+                return count2.compareTo(count1); // Descending order
+            });
+            
+        } catch (SQLException e) {
+            System.err.println("Error getting identical selection batches: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return batches;
+    }
 } 
