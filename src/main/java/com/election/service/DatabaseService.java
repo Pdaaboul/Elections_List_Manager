@@ -4,10 +4,8 @@ import com.election.model.Candidate;
 
 import java.io.File;
 import java.sql.*;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.text.SimpleDateFormat;
 
 public class DatabaseService {
     private static final String DB_PATH = "db/election.db";
@@ -164,5 +162,84 @@ public class DatabaseService {
         }
         
         return stats;
+    }
+    
+    // New method to get all saved sessions
+    public List<Map<String, Object>> getSavedSessions() {
+        List<Map<String, Object>> sessions = new ArrayList<>();
+        
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT DISTINCT session_id, timestamp FROM " + SELECTIONS_TABLE + 
+                     " ORDER BY timestamp DESC")) {
+            
+            ResultSet rs = pstmt.executeQuery();
+            
+            int sessionCount = 1;
+            SimpleDateFormat displayFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+            
+            while (rs.next()) {
+                String sessionId = rs.getString("session_id");
+                String timestamp = rs.getString("timestamp");
+                
+                Map<String, Object> session = new HashMap<>();
+                session.put("id", sessionId);
+                session.put("timestamp", timestamp);
+                session.put("name", "Generated List #" + sessionCount++);
+                
+                Timestamp ts = Timestamp.valueOf(timestamp);
+                session.put("formattedTime", displayFormat.format(ts));
+                
+                // Get the count of candidates in this session
+                try (PreparedStatement countStmt = conn.prepareStatement(
+                        "SELECT COUNT(*) as count FROM " + SELECTIONS_TABLE + 
+                        " WHERE session_id = ?")) {
+                    countStmt.setString(1, sessionId);
+                    ResultSet countRs = countStmt.executeQuery();
+                    if (countRs.next()) {
+                        session.put("candidateCount", countRs.getInt("count"));
+                    }
+                }
+                
+                sessions.add(session);
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error getting saved sessions: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return sessions;
+    }
+    
+    // New method to get candidates in a specific session
+    public List<Map<String, Object>> getSessionCandidates(String sessionId) {
+        List<Map<String, Object>> candidates = new ArrayList<>();
+        
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "SELECT c.name, c.list, s.selection_order FROM " + 
+                     SELECTIONS_TABLE + " s JOIN " + CANDIDATES_TABLE + " c " +
+                     "ON s.candidate_id = c.id WHERE s.session_id = ? " +
+                     "ORDER BY s.selection_order")) {
+            
+            pstmt.setString(1, sessionId);
+            ResultSet rs = pstmt.executeQuery();
+            
+            while (rs.next()) {
+                Map<String, Object> candidate = new HashMap<>();
+                candidate.put("name", rs.getString("name"));
+                candidate.put("list", rs.getString("list"));
+                candidate.put("order", rs.getInt("selection_order"));
+                
+                candidates.add(candidate);
+            }
+            
+        } catch (SQLException e) {
+            System.err.println("Error getting session candidates: " + e.getMessage());
+            e.printStackTrace();
+        }
+        
+        return candidates;
     }
 } 

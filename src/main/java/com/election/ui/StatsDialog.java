@@ -3,30 +3,57 @@ package com.election.ui;
 import com.election.service.DatabaseService;
 import javafx.geometry.Insets;
 import javafx.scene.control.*;
-import javafx.scene.layout.GridPane;
-import javafx.scene.layout.Priority;
-import javafx.scene.layout.VBox;
+import javafx.scene.layout.*;
+import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Window;
 
+import java.util.List;
 import java.util.Map;
 
 public class StatsDialog extends Dialog<Void> {
     
+    private final DatabaseService databaseService;
+    
     public StatsDialog(Window owner) {
+        databaseService = DatabaseService.getInstance();
+        
         // Configure dialog
         setTitle("Election Statistics");
-        setHeaderText("Candidate Selection Statistics");
+        setHeaderText("Election Statistics & History");
         initModality(Modality.APPLICATION_MODAL);
         initOwner(owner);
         
         // Set dialog size
         setResizable(true);
-        getDialogPane().setPrefWidth(500);
-        getDialogPane().setPrefHeight(400);
+        getDialogPane().setPrefWidth(600);
+        getDialogPane().setPrefHeight(500);
+        
+        // Create tabbed view
+        TabPane tabPane = new TabPane();
+        tabPane.setTabClosingPolicy(TabPane.TabClosingPolicy.UNAVAILABLE);
+        
+        // Create tabs
+        Tab candidateStatsTab = createCandidateStatsTab();
+        Tab savedListsTab = createSavedListsTab();
+        
+        tabPane.getTabs().addAll(candidateStatsTab, savedListsTab);
+        
+        // Add close button
+        ButtonType closeButton = new ButtonType("Close", ButtonBar.ButtonData.OK_DONE);
+        getDialogPane().getButtonTypes().add(closeButton);
+        
+        // Set content
+        getDialogPane().setContent(tabPane);
+    }
+    
+    private Tab createCandidateStatsTab() {
+        Tab tab = new Tab("Candidate Statistics");
         
         // Load statistics data
-        Map<String, Integer> stats = DatabaseService.getInstance().getCandidateStats();
+        Map<String, Integer> stats = databaseService.getCandidateStats();
         
         // Create content
         VBox content = new VBox(10);
@@ -72,11 +99,74 @@ public class StatsDialog extends Dialog<Void> {
         summaryLabel.setPadding(new Insets(10, 0, 0, 0));
         content.getChildren().add(summaryLabel);
         
-        // Add close button
-        ButtonType closeButton = new ButtonType("Close", ButtonBar.ButtonData.OK_DONE);
-        getDialogPane().getButtonTypes().add(closeButton);
+        tab.setContent(content);
+        return tab;
+    }
+    
+    private Tab createSavedListsTab() {
+        Tab tab = new Tab("Saved Lists History");
         
-        // Set content
-        getDialogPane().setContent(content);
+        // Load saved sessions
+        List<Map<String, Object>> sessions = databaseService.getSavedSessions();
+        
+        VBox content = new VBox(10);
+        content.setPadding(new Insets(10));
+        
+        if (sessions.isEmpty()) {
+            Label noDataLabel = new Label("No saved lists found.");
+            noDataLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+            content.getChildren().add(noDataLabel);
+        } else {
+            Label titleLabel = new Label("Saved Lists History");
+            titleLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+            content.getChildren().add(titleLabel);
+            
+            // Create master VBox to hold all lists
+            VBox listsContainer = new VBox(15);
+            listsContainer.setPadding(new Insets(5));
+            
+            // Add each session
+            for (Map<String, Object> session : sessions) {
+                String sessionName = (String) session.get("name");
+                String formattedTime = (String) session.get("formattedTime");
+                int candidateCount = (int) session.get("candidateCount");
+                String sessionId = (String) session.get("id");
+                
+                // Session header
+                TitledPane sessionPane = new TitledPane();
+                sessionPane.setText(sessionName + " - " + formattedTime + " (" + candidateCount + " selections)");
+                
+                // Session content - just a simple list
+                ListView<String> candidatesList = new ListView<>();
+                
+                // Get candidates for this session
+                List<Map<String, Object>> candidates = databaseService.getSessionCandidates(sessionId);
+                
+                // Add candidates to list with their order
+                for (Map<String, Object> candidate : candidates) {
+                    String name = (String) candidate.get("name");
+                    String list = (String) candidate.get("list");
+                    int order = (int) candidate.get("order");
+                    
+                    candidatesList.getItems().add(String.format("#%d - %s (%s)", order, name, list));
+                }
+                
+                sessionPane.setContent(candidatesList);
+                sessionPane.setExpanded(false);
+                
+                listsContainer.getChildren().add(sessionPane);
+            }
+            
+            // Add lists to a scroll pane
+            ScrollPane scrollPane = new ScrollPane(listsContainer);
+            scrollPane.setFitToWidth(true);
+            scrollPane.setPrefHeight(350);
+            
+            content.getChildren().add(scrollPane);
+            VBox.setVgrow(scrollPane, Priority.ALWAYS);
+        }
+        
+        tab.setContent(content);
+        return tab;
     }
 } 
