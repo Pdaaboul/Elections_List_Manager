@@ -111,4 +111,26 @@ public class PdfService {
         cell.setPadding(5);
         table.addCell(cell);
     }
+    
+    // Method to clear all PDF files
+    public boolean clearPdfs() {
+        File outputDir = new File(OUTPUT_DIR);
+        if (!outputDir.exists()) {
+            outputDir.mkdir();
+            return true;
+        }
+        
+        boolean success = true;
+        File[] files = outputDir.listFiles((dir, name) -> name.toLowerCase().endsWith(".pdf"));
+        
+        if (files != null) {
+            for (File file : files) {
+                if (!file.delete()) {
+                    success = false;
+                }
+            }
+        }
+        
+        return success;
+    }
 } 

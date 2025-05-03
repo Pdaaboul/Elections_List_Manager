@@ -332,4 +332,62 @@ public class DatabaseService {
         
         return batches;
     }
+    
+    // Method to clear all selections
+    public boolean clearAllSelections() {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             Statement stmt = conn.createStatement()) {
+            
+            // Delete all selections
+            stmt.executeUpdate("DELETE FROM " + SELECTIONS_TABLE);
+            
+            // Reset selection counts
+            stmt.executeUpdate("UPDATE " + CANDIDATES_TABLE + " SET selection_count = 0");
+            
+            return true;
+        } catch (SQLException e) {
+            System.err.println("Error clearing selections: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    // Method to delete a specific session
+    public boolean deleteSession(String sessionId) {
+        try (Connection conn = DriverManager.getConnection(DB_URL);
+             PreparedStatement pstmt = conn.prepareStatement(
+                     "DELETE FROM " + SELECTIONS_TABLE + " WHERE session_id = ?")) {
+            
+            pstmt.setString(1, sessionId);
+            int rowsAffected = pstmt.executeUpdate();
+            
+            // Update candidate counts
+            updateCandidateCountsAfterDeletion(conn);
+            
+            return rowsAffected > 0;
+        } catch (SQLException e) {
+            System.err.println("Error deleting session: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+    
+    // Method to recalculate all candidate selection counts
+    private void updateCandidateCountsAfterDeletion(Connection conn) throws SQLException {
+        // First, set all counts to 0
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate("UPDATE " + CANDIDATES_TABLE + " SET selection_count = 0");
+        }
+        
+        // Then recalculate based on remaining selections
+        String query = 
+            "UPDATE " + CANDIDATES_TABLE + " SET selection_count = (" +
+            "   SELECT COUNT(*) FROM " + SELECTIONS_TABLE + 
+            "   WHERE candidate_id = " + CANDIDATES_TABLE + ".id" +
+            ")";
+        
+        try (Statement stmt = conn.createStatement()) {
+            stmt.executeUpdate(query);
+        }
+    }
 } 

@@ -57,4 +57,23 @@ public class LoggingService {
     public void logError(String context, Exception e) {
         log(String.format("ERROR in %s: %s - %s", context, e.getClass().getSimpleName(), e.getMessage()));
     }
+    
+    // Method to clear all logs
+    public boolean clearLogs() {
+        try {
+            File logFile = new File(LOG_FILE);
+            if (logFile.exists()) {
+                // Create a new empty file to replace the existing one
+                try (PrintWriter writer = new PrintWriter(new FileWriter(LOG_FILE, false))) {
+                    writer.println("[" + new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date()) + "] Logs cleared");
+                }
+                return true;
+            }
+            return false;
+        } catch (IOException e) {
+            System.err.println("Error clearing log file: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
 } 

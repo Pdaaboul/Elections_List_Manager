@@ -1,7 +1,10 @@
 package com.election.ui;
 
 import com.election.service.DatabaseService;
+import com.election.service.LoggingService;
+import com.election.service.PdfService;
 import javafx.geometry.Insets;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
@@ -10,19 +13,25 @@ import javafx.scene.text.FontWeight;
 import javafx.stage.Modality;
 import javafx.stage.Window;
 
+import java.io.File;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class StatsDialog extends Dialog<Void> {
     
     private final DatabaseService databaseService;
+    private final LoggingService loggingService;
+    private final PdfService pdfService;
     
     public StatsDialog(Window owner) {
         databaseService = DatabaseService.getInstance();
+        loggingService = LoggingService.getInstance();
+        pdfService = PdfService.getInstance();
         
         // Configure dialog
         setTitle("Election Statistics");
-        setHeaderText("Election Statistics & History");
+        setHeaderText("Election Statistics & Data Management");
         initModality(Modality.APPLICATION_MODAL);
         initOwner(owner);
         
@@ -39,8 +48,9 @@ public class StatsDialog extends Dialog<Void> {
         Tab candidateStatsTab = createCandidateStatsTab();
         Tab savedListsTab = createSavedListsTab();
         Tab identicalBatchesTab = createIdenticalBatchesTab();
+        Tab dataManagementTab = createDataManagementTab(); // New tab
         
-        tabPane.getTabs().addAll(candidateStatsTab, savedListsTab, identicalBatchesTab);
+        tabPane.getTabs().addAll(candidateStatsTab, savedListsTab, identicalBatchesTab, dataManagementTab);
         
         // Add close button
         ButtonType closeButton = new ButtonType("Close", ButtonBar.ButtonData.OK_DONE);
@@ -137,7 +147,24 @@ public class StatsDialog extends Dialog<Void> {
                 TitledPane sessionPane = new TitledPane();
                 sessionPane.setText(sessionName + " - " + formattedTime + " (" + candidateCount + " selections)");
                 
-                // Session content - just a simple list
+                VBox sessionContent = new VBox(10);
+                sessionContent.setPadding(new Insets(10));
+                
+                // Add delete button
+                Button deleteButton = new Button("Delete This List");
+                deleteButton.setStyle("-fx-background-color: #ff5555; -fx-text-fill: white;");
+                deleteButton.setOnAction(e -> {
+                    if (confirmDelete("Are you sure you want to delete this list?")) {
+                        if (databaseService.deleteSession(sessionId)) {
+                            loggingService.log("Deleted session: " + sessionId);
+                            refreshDialog();
+                        }
+                    }
+                });
+                HBox buttonBox = new HBox(deleteButton);
+                buttonBox.setAlignment(Pos.CENTER_RIGHT);
+                
+                // Session content - list of candidates
                 ListView<String> candidatesList = new ListView<>();
                 
                 // Get candidates for this session
@@ -152,7 +179,10 @@ public class StatsDialog extends Dialog<Void> {
                     candidatesList.getItems().add(String.format("#%d - %s (%s)", order, name, list));
                 }
                 
-                sessionPane.setContent(candidatesList);
+                VBox.setVgrow(candidatesList, Priority.ALWAYS);
+                sessionContent.getChildren().addAll(candidatesList, buttonBox);
+                
+                sessionPane.setContent(sessionContent);
                 sessionPane.setExpanded(false);
                 
                 listsContainer.getChildren().add(sessionPane);
@@ -253,5 +283,154 @@ public class StatsDialog extends Dialog<Void> {
         
         tab.setContent(content);
         return tab;
+    }
+    
+    private Tab createDataManagementTab() {
+        Tab tab = new Tab("Data Management");
+        
+        VBox content = new VBox(20);
+        content.setPadding(new Insets(20));
+        content.setAlignment(Pos.TOP_CENTER);
+        
+        // Add section title
+        Label titleLabel = new Label("Data Management & Cleanup");
+        titleLabel.setFont(Font.font("System", FontWeight.BOLD, 16));
+        
+        // Add warning
+        Label warningLabel = new Label("Warning: These actions cannot be undone!");
+        warningLabel.setTextFill(Color.RED);
+        warningLabel.setFont(Font.font("System", FontWeight.BOLD, 14));
+        
+        content.getChildren().addAll(titleLabel, warningLabel);
+        
+        // Add sections for different types of data
+        
+        // 1. Clear logs section
+        TitledPane logsPane = createDataSection(
+            "Application Logs",
+            "Clear the application log file (log.txt). " +
+            "This removes all recorded actions and events.",
+            "Clear All Logs",
+            () -> {
+                if (confirmDelete("Are you sure you want to delete all logs?")) {
+                    boolean success = loggingService.clearLogs();
+                    if (success) {
+                        showInfoDialog("Logs Cleared", "All logs have been successfully cleared.");
+                    } else {
+                        showErrorDialog("Error", "Failed to clear logs.");
+                    }
+                }
+            }
+        );
+        
+        // 2. Clear PDF files section
+        TitledPane pdfsPane = createDataSection(
+            "PDF Reports",
+            "Delete all PDF reports from the output directory. " +
+            "This removes all selection reports that have been generated.",
+            "Delete All PDFs",
+            () -> {
+                if (confirmDelete("Are you sure you want to delete all PDF files?")) {
+                    boolean success = pdfService.clearPdfs();
+                    if (success) {
+                        showInfoDialog("PDFs Deleted", "All PDF files have been successfully deleted.");
+                        loggingService.log("Deleted all PDF files");
+                    } else {
+                        showErrorDialog("Error", "Failed to delete some PDF files.");
+                    }
+                }
+            }
+        );
+        
+        // 3. Clear database section
+        TitledPane databasePane = createDataSection(
+            "Selection Data",
+            "Clear all selection data from the database. " +
+            "This will remove all saved selections and reset all statistics.",
+            "Clear All Selection Data",
+            () -> {
+                if (confirmDelete("Are you sure you want to delete ALL selection data?\n" +
+                        "This will reset all statistics and cannot be undone.")) {
+                    boolean success = databaseService.clearAllSelections();
+                    if (success) {
+                        showInfoDialog("Data Cleared", "All selection data has been successfully cleared.");
+                        loggingService.log("Cleared all selection data");
+                        refreshDialog();
+                    } else {
+                        showErrorDialog("Error", "Failed to clear selection data.");
+                    }
+                }
+            }
+        );
+        
+        // Add all sections to main content
+        content.getChildren().addAll(logsPane, pdfsPane, databasePane);
+        
+        tab.setContent(content);
+        return tab;
+    }
+    
+    private TitledPane createDataSection(String title, String description, String buttonText, Runnable action) {
+        TitledPane section = new TitledPane();
+        section.setText(title);
+        section.setExpanded(false);
+        
+        VBox sectionContent = new VBox(10);
+        sectionContent.setPadding(new Insets(10));
+        
+        // Add description
+        Label descLabel = new Label(description);
+        descLabel.setWrapText(true);
+        
+        // Add action button
+        Button actionButton = new Button(buttonText);
+        actionButton.setStyle("-fx-background-color: #ff5555; -fx-text-fill: white;");
+        actionButton.setOnAction(e -> action.run());
+        
+        HBox buttonBox = new HBox(actionButton);
+        buttonBox.setAlignment(Pos.CENTER_RIGHT);
+        buttonBox.setPadding(new Insets(10, 0, 0, 0));
+        
+        sectionContent.getChildren().addAll(descLabel, buttonBox);
+        section.setContent(sectionContent);
+        
+        return section;
+    }
+    
+    private boolean confirmDelete(String message) {
+        Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+        alert.setTitle("Confirm Deletion");
+        alert.setHeaderText("Are you sure?");
+        alert.setContentText(message);
+        alert.initOwner(getDialogPane().getScene().getWindow());
+        
+        Optional<ButtonType> result = alert.showAndWait();
+        return result.isPresent() && result.get() == ButtonType.OK;
+    }
+    
+    private void showInfoDialog(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.initOwner(getDialogPane().getScene().getWindow());
+        alert.showAndWait();
+    }
+    
+    private void showErrorDialog(String title, String message) {
+        Alert alert = new Alert(Alert.AlertType.ERROR);
+        alert.setTitle(title);
+        alert.setHeaderText(null);
+        alert.setContentText(message);
+        alert.initOwner(getDialogPane().getScene().getWindow());
+        alert.showAndWait();
+    }
+    
+    private void refreshDialog() {
+        // Close and reopen the dialog to refresh content
+        Window owner = getDialogPane().getScene().getWindow();
+        close();
+        StatsDialog newDialog = new StatsDialog(owner);
+        newDialog.show();
     }
 } 
