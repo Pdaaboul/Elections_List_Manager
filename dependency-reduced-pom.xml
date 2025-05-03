@@ -19,7 +19,7 @@
         <artifactId>javafx-maven-plugin</artifactId>
         <version>0.0.8</version>
         <configuration>
-          <mainClass>com.election.ElectionApp</mainClass>
+          <mainClass>${main.class}</mainClass>
         </configuration>
       </plugin>
       <plugin>
@@ -34,19 +34,151 @@
             <configuration>
               <transformers>
                 <transformer>
-                  <mainClass>com.election.ElectionAppLauncher</mainClass>
+                  <mainClass>${main.class}</mainClass>
                 </transformer>
               </transformers>
             </configuration>
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.2.2</version>
+        <configuration>
+          <archive>
+            <manifest>
+              <addClasspath>true</addClasspath>
+              <mainClass>${main.class}</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.moditect</groupId>
+        <artifactId>moditect-maven-plugin</artifactId>
+        <version>1.0.0.RC2</version>
+        <executions>
+          <execution>
+            <id>create-runtime-image</id>
+            <phase>package</phase>
+            <goals>
+              <goal>create-runtime-image</goal>
+            </goals>
+            <configuration>
+              <modulePath>
+                <path>${project.build.directory}/${project.build.finalName}.jar</path>
+              </modulePath>
+              <modules>
+                <module>java.sql</module>
+                <module>java.desktop</module>
+                <module>javafx.controls</module>
+                <module>javafx.fxml</module>
+                <module>javafx.graphics</module>
+              </modules>
+              <launcher>
+                <name>ElectionManager</name>
+                <module>java.sql</module>
+              </launcher>
+              <outputDirectory>${project.build.directory}/jlink-image</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+  <profiles>
+    <profile>
+      <id>windows-installer</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.0.0</version>
+            <executions>
+              <execution>
+                <id>create-windows-installer</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>jpackage</executable>
+                  <arguments>
+                    <argument>--type</argument>
+                    <argument>exe</argument>
+                    <argument>--name</argument>
+                    <argument>${app.name}</argument>
+                    <argument>--app-version</argument>
+                    <argument>${project.version}</argument>
+                    <argument>--input</argument>
+                    <argument>${project.build.directory}</argument>
+                    <argument>--main-jar</argument>
+                    <argument>${project.build.finalName}.jar</argument>
+                    <argument>--win-dir-chooser</argument>
+                    <argument>--win-shortcut</argument>
+                    <argument>--win-menu</argument>
+                    <argument>--dest</argument>
+                    <argument>${project.build.directory}/installer</argument>
+                    <argument>--resource-dir</argument>
+                    <argument>${project.basedir}/src/main/resources</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
+      <id>mac-installer</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.0.0</version>
+            <executions>
+              <execution>
+                <id>create-mac-installer</id>
+                <phase>package</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+                <configuration>
+                  <executable>jpackage</executable>
+                  <arguments>
+                    <argument>--type</argument>
+                    <argument>dmg</argument>
+                    <argument>--name</argument>
+                    <argument>${app.name}</argument>
+                    <argument>--app-version</argument>
+                    <argument>${project.version}</argument>
+                    <argument>--input</argument>
+                    <argument>${project.build.directory}</argument>
+                    <argument>--main-jar</argument>
+                    <argument>${project.build.finalName}.jar</argument>
+                    <argument>--mac-package-name</argument>
+                    <argument>ElectionManager</argument>
+                    <argument>--dest</argument>
+                    <argument>${project.build.directory}/installer</argument>
+                    <argument>--resource-dir</argument>
+                    <argument>${project.basedir}/src/main/resources</argument>
+                  </arguments>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
   <properties>
     <maven.compiler.target>17</maven.compiler.target>
+    <main.class>com.election.ElectionAppLauncher</main.class>
     <maven.compiler.source>17</maven.compiler.source>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <javafx.version>17.0.2</javafx.version>
+    <app.name>ElectionManager</app.name>
   </properties>
 </project>
