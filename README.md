@@ -1,74 +1,84 @@
-# Internal Election Application
+# Election Manager Application
 
-A desktop JavaFX application for conducting internal elections, allowing users to select candidates in a specific order and persisting selections to local storage.
+A JavaFX application for managing elections, candidates, and voting processes.
 
 ## Features
 
-- Display two lists, each with 9 candidates (18 total candidates)
-- Select up to 9 candidates across both lists in a specific order
-- Save selections to a local SQLite database
-- Export selections to PDF reports in the `output/` directory
-- View statistics on candidate selection counts
-- Works completely offline with all data stored locally
+- Manage candidates and voter information
+- Create and organize voting processes
+- Generate reports and statistics
+- View results and analytics
 
-## Technical Stack
+## Installation
 
-- JavaFX for the user interface
-- SQLite with JDBC for data persistence
-- iText for PDF generation
-- No external services or internet connection required
+### Prerequisites
 
-## Setup and Installation
+- Java 17 or higher is required to run the application
+- Maven for building from source
 
-### Requirements
+### Using the Installer
 
-- Java Development Kit (JDK) 17 or later
-- Maven 3.6 or later
+#### Windows
+1. Download the Windows installer from the releases page
+2. Run the ElectionManager installer (.exe)
+3. Follow the installation wizard
+4. After installation, you can launch the application from the Start menu
 
-### Building the Application
+#### macOS
+1. Download the macOS DMG from the releases page
+2. Open the DMG file
+3. Drag ElectionManager to your Applications folder
+4. Launch the application from your Applications folder
 
-1. Clone or download this repository
-2. Navigate to the project directory in a terminal
-3. Build the project with Maven:
+#### Linux
+1. Download the DEB package from the releases page
+2. Install using your package manager:
+   ```
+   sudo dpkg -i ElectionManager.deb
+   ```
+3. Launch from your applications menu or by running `ElectionManager` in terminal
 
-```bash
-mvn clean package
+## Building from Source
+
+If you prefer to build the application from source:
+
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/election-manager.git
+   cd election-manager
+   ```
+
+2. Build with Maven:
+   ```
+   mvn clean package
+   ```
+
+3. Run the application:
+   ```
+   java -jar target/election-app-1.0-SNAPSHOT.jar
+   ```
+
+## Creating Installers
+
+To create installers for different operating systems, use the provided script:
+
+```
+./create-installer.sh
 ```
 
-This will create an executable JAR file in the `target/` directory.
-
-### Running the Application
-
-Run the application using:
-
-```bash
-java -jar target/election-app-1.0-SNAPSHOT.jar
-```
-
-Or double-click the JAR file if your system allows it.
+This will:
+1. Build the application with Maven
+2. Create an installer appropriate for your current operating system
+3. Place the installer in the `target/installer` directory
 
 ## Usage
 
-1. When the application starts, you'll see two lists of candidates.
-2. Click on a candidate to select them. Each candidate will show their selection order (1-9).
-3. To deselect a candidate, click on them again.
-4. You can select up to 9 candidates total across both lists.
-5. After making your selections, click "Save Selection" to:
-   - Save selections to the database
-   - Generate a PDF report in the `output/` folder
-6. Click "View Statistics" to see the selection counts for all candidates.
-7. Click "Reset" to clear all current selections.
+1. Launch the application
+2. Create a new election or open an existing one
+3. Add candidates and voter information
+4. Configure voting processes and settings
+5. Generate reports and view statistics
 
-## Configuration
+## License
 
-The candidate names are loaded from `config/names.json`. You can edit this file to change the candidate names.
-
-## Data Storage
-
-- SQLite database: `election.db` (created on first run)
-- PDF reports: `output/` directory (created on first run)
-- Logs: `log.txt` in the application directory
-
-## Deployment
-
-The application can be deployed on multiple machines, and each will maintain its own local database. No server or internet connection is required. 
+This project is licensed under the MIT License - see the LICENSE file for details. 
